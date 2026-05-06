@@ -4,7 +4,7 @@ Docker Compose стек: PostgreSQL 16 + PgBouncer + Backup + Prometheus.
 
 Образ PgBouncer: `bitnamilegacy/pgbouncer:1.22.1-debian-12-r9` (тег закріплений; `bitnami/pgbouncer:latest` на Docker Hub часто недоступний).
 
-**Нотатки:** у `postgresql.conf` має бути `listen_addresses='*'` (інакше з інших контейнерів буде `Connection refused`). Якщо `POSTGRES_USER` не збігається з ім’ям БД, `psql` без `-d` підключається до БД з іменем користувача — у `backup.sh` для службових запитів використовується `POSTGRES_DB` (типово `postgres`).
+**PgBouncer (Bitnami):** у `pgbouncer.ini` має бути `auth_file = /bitnami/pgbouncer/conf/userlist.txt` (саме туди compose монтує `userlist.txt`). Шлях `/etc/pgbouncer/userlist.txt` дає «No such file» і зламану автентифікацію.
 
 ## Перед першим запуском (коротко)
 

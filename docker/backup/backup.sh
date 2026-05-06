@@ -11,6 +11,7 @@ RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 PG_HOST="${POSTGRES_HOST:-postgres}"
 PG_PORT="${POSTGRES_PORT:-5432}"
 PG_USER="${POSTGRES_USER:-pgadmin}"
+PG_MAINTDB="${POSTGRES_DB:-postgres}"
 PGPASSWORD="${POSTGRES_PASSWORD}"
 
 export PGPASSWORD
@@ -32,7 +33,8 @@ pg_dumpall \
 log "Full backup saved: $BACKUP_DIR/full/full_${TIMESTAMP}.sql.gz"
 
 # --- Per-database backup (зручніший restore) ---
-DATABASES=$(psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -t -c \
+# Список БД: підключатися до maintenance DB (зазвичай postgres), інакше psql шукає БД з іменем юзера
+DATABASES=$(psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_MAINTDB" -t -c \
   "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres';")
 
 for DB in $DATABASES; do

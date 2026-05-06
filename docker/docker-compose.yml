@@ -86,11 +86,13 @@ services:
     networks:
       - pg_private_net
     ports:
-      # Поки VPN не налаштований: bind на конкретний public IP сервера.
-      # ОБОВ'ЯЗКОВО закрий доступ firewall allowlist-ом.
+      # Публічний IP — для клієнтів ззовні (firewall allowlist).
       - "91.239.232.91:6432:6432"
+      # Localhost на VPS — діагностика з хоста (127.0.0.1:6432; не плутати з публічним bind вище).
+      - "127.0.0.1:6432:6432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432"]
+      # PgBouncer не завжди коректно відповідає на pg_isready — перевірка відкритого порту.
+      test: ["CMD-SHELL", "bash -lc 'exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -110,7 +112,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_MAINTENANCE_DB: ${POSTGRES_MAINTENANCE_DB:-postgres}
       BACKUP_DEST_PATH: /backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
     volumes:
@@ -119,10 +121,10 @@ services:
       - ./backup/restore.sh:/usr/local/bin/restore.sh:ro
     networks:
       - pg_private_net
-    # Щоденний backup о 03:00 (cron у BusyBox). Скрипти на хості мають бути executable (chmod +x).
+    # Cron викликає скрипт через sh — bind-mount часто без +x, прямий exec давав би permission denied.
     entrypoint: >
       sh -c "
-        echo '0 3 * * * /usr/local/bin/backup.sh >> /backups/backup.log 2>&1' | crontab - &&
+        echo '0 3 * * * sh /usr/local/bin/backup.sh >> /backups/backup.log 2>&1' | crontab - &&
         crond -f -l 6
       "
 

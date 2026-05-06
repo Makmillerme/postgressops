@@ -33,8 +33,9 @@ check "postgres_exporter running"     "docker inspect -f '{{.State.Running}}' po
 
 echo ""
 echo "Connectivity:"
-check "postgres reachable"            "docker exec postgres pg_isready -U $POSTGRES_USER"
-check "pgbouncer reachable (6432)"    "docker exec pgbouncer pg_isready -h localhost -p 6432"
+check "postgres reachable"            "docker exec postgres pg_isready -U $POSTGRES_USER -d ${POSTGRES_DB:-postgres}"
+# pg_isready до PgBouncer часто дає false negative (SASL/протокол); перевіряємо лише TCP.
+check "pgbouncer TCP (pool port)"   "docker exec pgbouncer bash -lc 'exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}'"
 
 echo ""
 echo "Backups:"

@@ -48,8 +48,8 @@ docker/
 │   ├── pgbouncer.ini           # Конфіг пулера
 │   └── userlist.txt            # Паролі для PgBouncer (тримати у .gitignore)
 ├── init/
-│   ├── 01-create-project-dbs.sql   # Ролі та БД per-project
-│   └── 02-init-extensions.sql      # PostgreSQL extensions
+│   ├── 00-init-extensions.sql      # dblink тощо (раніше за 01)
+│   └── 01-create-project-dbs.sql   # Ролі та БД per-project
 ├── backup/
 │   ├── backup.sh               # Щоденний pg_dump + ротація
 │   └── restore.sh              # Відновлення БД
@@ -155,6 +155,17 @@ docker compose logs -f postgres
 docker compose logs -f pgbouncer
 ```
 
+### Повна чиста установка (wipe + auto setup)
+
+```bash
+# УВАГА: видаляє volumes і всі дані в PostgreSQL
+chmod +x scripts/clean-install.sh
+./scripts/clean-install.sh
+
+# Без інтерактивного підтвердження:
+./scripts/clean-install.sh --yes
+```
+
 ### Перевірити підключення
 
 ```bash
@@ -165,7 +176,7 @@ chmod +x scripts/list-connections.sh
 ### Ручний backup зараз
 
 ```bash
-docker exec pg_backup /usr/local/bin/backup.sh
+docker exec pg_backup sh /usr/local/bin/backup.sh
 ```
 
 ### Переглянути backup-логи
@@ -181,7 +192,7 @@ docker exec pg_backup cat /backups/backup.log
 docker cp myapp_20260506.dump pg_backup:/backups/full/
 
 # Відновити
-docker exec -it pg_backup /usr/local/bin/restore.sh myapp /backups/full/myapp_20260506.dump
+docker exec -it pg_backup sh /usr/local/bin/restore.sh myapp /backups/full/myapp_20260506.dump
 ```
 
 ### Перезавантажити PgBouncer (після зміни конфігу)

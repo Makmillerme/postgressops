@@ -2,6 +2,8 @@
 
 Docker Compose стек: PostgreSQL 16 + PgBouncer + Backup + Prometheus.
 
+Образ PgBouncer: `bitnamilegacy/pgbouncer:1.22.1-debian-12-r9` (тег закріплений; `bitnami/pgbouncer:latest` на Docker Hub часто недOSTUPний).
+
 ## Перед першим запуском (коротко)
 
 - У репозиторії тільки шаблони без секретів: `docker/.env.example`, `docker/pgbouncer/userlist.txt` з `CHANGE_ME_*`.

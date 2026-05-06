@@ -55,13 +55,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: "1.5G"
-        reservations:
-          memory: "512M"
 
   # -----------------------------------------------------------
   # PgBouncer — Connection Pooler
@@ -101,11 +94,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "256M"
 
   # -----------------------------------------------------------
   # Backup — щоденний pg_dump + ротація
@@ -137,11 +125,6 @@ services:
         echo '0 3 * * * /usr/local/bin/backup.sh >> /backups/backup.log 2>&1' | crontab - &&
         crond -f -l 6
       "
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "256M"
 
   # -----------------------------------------------------------
   # postgres_exporter — метрики для Prometheus
@@ -159,11 +142,6 @@ services:
       - pg_private_net
     expose:
       - "9187"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: "128M"
 
   # -----------------------------------------------------------
   # Prometheus (опційно — видали якщо є зовнішній)
@@ -184,8 +162,3 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "512M"

@@ -127,7 +127,30 @@ docker compose -f "$STACK_DIR/docker-compose.yml" --env-file "$ENV_FILE" up -d p
 
 log "Quick verification"
 docker exec postgres pg_isready -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" >/dev/null
-PGPASSWORD="$PROJECT_PASS" psql "host=127.0.0.1 port=${PGBOUNCER_LISTEN_PORT:-6432} dbname=${PROJECT_DB} user=${PROJECT_USER} sslmode=disable" -c "SELECT 1;" >/dev/null
+
+# Wait until PgBouncer is healthy after recreate (container can accept TCP before ready for auth/query).
+retries=30
+until [[ "$retries" -eq 0 ]]; do
+  status="$(docker inspect -f '{{.State.Health.Status}}' pgbouncer 2>/dev/null || true)"
+  if [[ "$status" == "healthy" ]]; then
+    break
+  fi
+  retries=$((retries - 1))
+  sleep 1
+done
+
+[[ "$retries" -gt 0 ]] || die "PgBouncer did not become healthy in time."
+
+retries=10
+until [[ "$retries" -eq 0 ]]; do
+  if PGPASSWORD="$PROJECT_PASS" psql "host=127.0.0.1 port=${PGBOUNCER_LISTEN_PORT:-6432} dbname=${PROJECT_DB} user=${PROJECT_USER} sslmode=disable" -c "SELECT 1;" >/dev/null 2>&1; then
+    break
+  fi
+  retries=$((retries - 1))
+  sleep 1
+done
+
+[[ "$retries" -gt 0 ]] || die "PgBouncer query verification failed after retries."
 
 echo ""
 echo "============================================================"

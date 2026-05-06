@@ -166,6 +166,17 @@ chmod +x scripts/clean-install.sh
 ./scripts/clean-install.sh --yes
 ```
 
+### Зафіксувати один активний проєкт (без втрати даних)
+
+```bash
+# Без down -v: дані в volumes не видаляються
+chmod +x scripts/freeze-single-project.sh
+./scripts/freeze-single-project.sh --project-key APP1
+
+# Без підтвердження:
+./scripts/freeze-single-project.sh --project-key APP1 --yes
+```
+
 ### Перевірити підключення
 
 ```bash

@@ -104,7 +104,7 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -118,10 +118,9 @@ services:
       - ./backup/restore.sh:/usr/local/bin/restore.sh:ro
     networks:
       - pg_private_net
-    # Запускаємо backup за розкладом через crond (Alpine cron)
+    # Щоденний backup о 03:00 (cron у BusyBox). Скрипти на хості мають бути executable (chmod +x).
     entrypoint: >
       sh -c "
-        chmod +x /usr/local/bin/backup.sh /usr/local/bin/restore.sh &&
         echo '0 3 * * * /usr/local/bin/backup.sh >> /backups/backup.log 2>&1' | crontab - &&
         crond -f -l 6
       "
@@ -135,7 +134,7 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable"
     networks:

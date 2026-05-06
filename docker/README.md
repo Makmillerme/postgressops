@@ -4,7 +4,7 @@ Docker Compose стек: PostgreSQL 16 + PgBouncer + Backup + Prometheus.
 
 Образ PgBouncer: `bitnamilegacy/pgbouncer:1.22.1-debian-12-r9` (тег закріплений; `bitnami/pgbouncer:latest` на Docker Hub часто недоступний).
 
-Ліміти `deploy.resources` у compose **не використовуються** — на VPS з 1 vCPU Docker інакше може відмовити в старті (наприклад, `cpus: "2"`).
+**Примітка:** контейнер `pg_backup` не робить `chmod` на змонтованих скриптах (`:ro`). На сервері залиш `chmod +x backup/*.sh`.
 
 ## Перед першим запуском (коротко)
 

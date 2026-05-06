@@ -4,7 +4,7 @@ Docker Compose стек: PostgreSQL 16 + PgBouncer + Backup + Prometheus.
 
 Образ PgBouncer: `bitnamilegacy/pgbouncer:1.22.1-debian-12-r9` (тег закріплений; `bitnami/pgbouncer:latest` на Docker Hub часто недоступний).
 
-**Примітка:** контейнер `pg_backup` не робить `chmod` на змонтованих скриптах (`:ro`). На сервері залиш `chmod +x backup/*.sh`.
+- Очікувано: `postgres` слухає TCP на всіх інтерфейсах (`listen_addresses='*'` у `postgres/postgresql.conf`). Без цього бекап/pg_bouncer отримують `Connection refused`.
 
 ## Перед першим запуском (коротко)
 

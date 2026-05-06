@@ -1,0 +1,11 @@
+# Секрети — НІКОЛИ не комітити
+docker/.env
+docker/pgbouncer/userlist.txt
+
+# Логи та бекапи
+docker/backup/*.log
+backups/
+
+# OS
+.DS_Store
+Thumbs.db

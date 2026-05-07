@@ -41,7 +41,7 @@
 ## Підготовка
 
 ```bash
-cd /root/apps/postgres-stack
+cd /root/apps/PostgressOps
 cp docker/.env.example docker/.env
 nano docker/.env
 ```
@@ -99,7 +99,7 @@ bash scripts/list-connections.sh
 
 1. На сервері:
 ```bash
-cd /root/apps/postgres-stack
+cd /root/apps/PostgressOps
 bash scripts/server-update.sh
 ```
 
@@ -113,7 +113,7 @@ bash scripts/server-update.sh
         "-o", "BatchMode=yes",
         "-o", "StrictHostKeyChecking=accept-new",
         "-T", "root@<SERVER_IP>",
-        "cd /root/apps/postgres-stack && node tools/mcp-postgres-ops/src/index.js"
+        "cd /root/apps/PostgressOps && node tools/mcp-postgres-ops/src/index.js"
       ]
     }
   }

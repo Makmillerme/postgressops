@@ -1,8 +1,12 @@
-# Секрети — НІКОЛИ не комітити
+# Secrets — NEVER commit
 docker/.env
 docker/pgbouncer/userlist.txt
+tools/mcp-postgres-ops/.env
 
-# Логи та бекапи
+# Node
+tools/mcp-postgres-ops/node_modules/
+
+# Logs and backups
 docker/backup/*.log
 backups/
 
@@ -10,5 +14,5 @@ backups/
 .DS_Store
 Thumbs.db
 
-# Cursor / Serena (локальні метадані)
+# Cursor / Serena (local metadata)
 .serena/

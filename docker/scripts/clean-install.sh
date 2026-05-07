@@ -2,8 +2,12 @@
 set -euo pipefail
 
 # ============================================================
-# clean-install.sh — повна чиста установка стеку
-# УВАГА: видаляє Docker volumes цього compose-проєкту.
+# clean-install.sh — Full wipe and clean reinstall.
+# WARNING: Removes ALL Docker volumes for this stack (data loss!).
+# Only use on a fresh server or when intentionally wiping data.
+#
+# Usage:
+#   ./scripts/clean-install.sh [--yes]
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,8 +20,7 @@ AUTO_YES="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --yes|-y)
-      AUTO_YES="true"; shift 1 ;;
+    --yes|-y)     AUTO_YES="true"; shift 1 ;;
     --stack-dir)
       STACK_DIR="$2"
       ENV_FILE="$STACK_DIR/.env"
@@ -35,218 +38,83 @@ done
 log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
-require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
-}
+# --- Validate ---
+[[ -f "$ENV_FILE" ]]       || die ".env not found: $ENV_FILE"
+[[ -f "$COMPOSE_FILE" ]]   || die "docker-compose.yml not found: $COMPOSE_FILE"
+[[ -f "$PGB_INI" ]]        || die "pgbouncer.ini not found: $PGB_INI"
+[[ -f "$USERLIST_FILE" ]]  || die "userlist.txt not found: $USERLIST_FILE"
 
-validate_paths() {
-  [[ -f "$ENV_FILE" ]] || die ".env not found: $ENV_FILE"
-  [[ -f "$COMPOSE_FILE" ]] || die "docker-compose.yml not found: $COMPOSE_FILE"
-  [[ -f "$PGB_INI" ]] || die "pgbouncer.ini not found: $PGB_INI"
-  [[ -f "$USERLIST_FILE" ]] || die "userlist.txt not found: $USERLIST_FILE"
-}
+command -v docker >/dev/null 2>&1 || die "docker is not installed"
+docker compose version >/dev/null 2>&1 || die "docker compose plugin is not installed"
 
-check_env_sanity() {
-  set -a && source "$ENV_FILE" && set +a
+set -a && source "$ENV_FILE" && set +a
 
-  [[ -n "${POSTGRES_USER:-}" ]] || die "POSTGRES_USER is empty in .env"
-  [[ -n "${POSTGRES_PASSWORD:-}" ]] || die "POSTGRES_PASSWORD is empty in .env"
+[[ -n "${POSTGRES_USER:-}" ]]     || die "POSTGRES_USER is empty in .env"
+[[ -n "${POSTGRES_PASSWORD:-}" ]] || die "POSTGRES_PASSWORD is empty in .env"
 
-  if rg -q "CHANGE_ME_" "$ENV_FILE"; then
-    die "Replace all CHANGE_ME_* values in $ENV_FILE before running."
-  fi
-}
+if grep -q "CHANGE_ME_" "$ENV_FILE"; then
+  die "Replace all CHANGE_ME_* values in $ENV_FILE before running."
+fi
 
-confirm_destructive() {
-  if [[ "$AUTO_YES" == "true" ]]; then
-    return
-  fi
-
+# --- Confirm ---
+if [[ "$AUTO_YES" != "true" ]]; then
   echo ""
-  echo "This will perform a CLEAN install:"
-  echo "  - docker compose down -v --remove-orphans"
-  echo "  - Recreate DB/users from .env"
-  echo "  - Regenerate PgBouncer userlist/databases"
+  echo "WARNING: This will perform a CLEAN reinstall:"
+  echo "  - docker compose down -v --remove-orphans  (ALL DATA REMOVED)"
+  echo "  - Fresh stack start from .env"
   echo ""
   read -r -p "Type YES to continue: " answer
   [[ "$answer" == "YES" ]] || die "Aborted by user."
-}
+fi
 
-escape_sql_literal() {
-  local value="$1"
-  printf "%s" "${value//\'/\'\'}"
-}
+# --- Sync PgBouncer userlist from .env ---
+log "Rewriting pgbouncer/userlist.txt from .env"
+[[ "${POSTGRES_PASSWORD}" != *\"* ]] || die "POSTGRES_PASSWORD contains double quote — escape it first."
+printf '"%s" "%s"\n' "$POSTGRES_USER" "$POSTGRES_PASSWORD" > "$USERLIST_FILE"
 
-render_pgbouncer_config_from_env() {
-  log "Syncing pgbouncer config from .env"
+# --- Sync admin_users / stats_users ---
+sed -i \
+  -e "s/^admin_users = .*/admin_users = ${POSTGRES_USER}/" \
+  -e "s/^stats_users = .*/stats_users = ${POSTGRES_USER}/" \
+  "$PGB_INI"
 
-  # 1) databases section from PROJECT_*_DB/USER
-  local tmp_ini
-  tmp_ini="$(mktemp)"
+# --- Wipe ---
+log "Stopping stack and removing volumes"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down -v --remove-orphans
 
-  awk '
-    BEGIN { in_db=0 }
-    /^\[databases\]/ { print; in_db=1; next }
-    /^\[/ && in_db==1 { in_db=0; print; next }
-    { if (in_db==0) print }
-  ' "$PGB_INI" > "$tmp_ini"
+# --- Start postgres first, wait healthy ---
+log "Starting postgres"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres
 
-  # Build database entries and insert right after [databases]
-  local db_block=""
-  while IFS='=' read -r key db_name; do
-    [[ "$key" =~ ^PROJECT_([A-Z0-9_]+)_DB$ ]] || continue
-    local prefix="${BASH_REMATCH[1]}"
-    local user_var="PROJECT_${prefix}_USER"
-    local db_user="${!user_var:-}"
-    [[ -n "$db_name" && -n "$db_user" ]] || continue
-    db_block+="${db_name} = host=postgres port=5432 dbname=${db_name} user=${db_user}"$'\n'
-  done < <(env | sort)
+log "Waiting for postgres healthcheck"
+retries=60
+until [[ "$retries" -eq 0 ]]; do
+  status="$(docker inspect -f '{{.State.Health.Status}}' postgres 2>/dev/null || true)"
+  [[ "$status" == "healthy" ]] && break
+  retries=$((retries - 1))
+  sleep 2
+done
+[[ "$retries" -gt 0 ]] || die "Postgres did not become healthy in time."
 
-  awk -v block="$db_block" '
-    /^\[databases\]/ {
-      print
-      if (length(block) > 0) {
-        printf "%s", block
-      }
-      next
-    }
-    { print }
-  ' "$tmp_ini" > "$PGB_INI"
-  rm -f "$tmp_ini"
+# --- Start remaining services ---
+log "Starting all services"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
-  # 2) admin_users/stats_users must match POSTGRES_USER
-  sed -i \
-    -e "s/^admin_users = .*/admin_users = ${POSTGRES_USER}/" \
-    -e "s/^stats_users = .*/stats_users = ${POSTGRES_USER}/" \
-    "$PGB_INI"
-}
+# --- Smoke tests ---
+log "Running smoke tests"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
-render_userlist_from_env() {
-  log "Rendering pgbouncer userlist from .env"
+docker exec postgres pg_isready -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" >/dev/null
+docker exec pgbouncer bash -lc "exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}" >/dev/null
+docker exec pg_backup sh /usr/local/bin/backup.sh >/dev/null
 
-  # userlist format does not handle unescaped double quotes well
-  [[ "${POSTGRES_PASSWORD}" != *\"* ]] || die "POSTGRES_PASSWORD contains double quote (\")"
-  [[ "${POSTGRES_USER}" != *\"* ]] || die "POSTGRES_USER contains double quote (\")"
+log "Smoke tests passed (postgres, pgbouncer TCP, backup)"
 
-  {
-    echo "# Auto-generated by scripts/clean-install.sh"
-    echo "# Do not edit manually; update .env and rerun script."
-    printf "\"%s\" \"%s\"\n" "$POSTGRES_USER" "$POSTGRES_PASSWORD"
-
-    while IFS='=' read -r key value; do
-      [[ "$key" =~ ^PROJECT_([A-Z0-9_]+)_USER$ ]] || continue
-      local prefix="${BASH_REMATCH[1]}"
-      local pass_var="PROJECT_${prefix}_PASS"
-      local user="$value"
-      local pass="${!pass_var:-}"
-
-      [[ -n "$user" && -n "$pass" ]] || continue
-      [[ "$user" != *\"* ]] || die "Username $user contains double quote (\")"
-      [[ "$pass" != *\"* ]] || die "Password for $user contains double quote (\")"
-      printf "\"%s\" \"%s\"\n" "$user" "$pass"
-    done < <(env | sort)
-  } > "$USERLIST_FILE"
-}
-
-clean_start() {
-  log "Stopping stack and removing volumes"
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down -v --remove-orphans
-}
-
-start_postgres() {
-  log "Starting postgres only"
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres
-
-  log "Waiting postgres healthcheck"
-  local retries=60
-  until [[ "$retries" -eq 0 ]]; do
-    status="$(docker inspect -f '{{.State.Health.Status}}' postgres 2>/dev/null || true)"
-    if [[ "$status" == "healthy" ]]; then
-      return
-    fi
-    retries=$((retries - 1))
-    sleep 2
-  done
-  die "Postgres did not become healthy in time."
-}
-
-ensure_roles_and_dbs_from_env() {
-  log "Creating/updating project roles and databases from .env"
-
-  while IFS='=' read -r key db_name; do
-    [[ "$key" =~ ^PROJECT_([A-Z0-9_]+)_DB$ ]] || continue
-    local prefix="${BASH_REMATCH[1]}"
-    local user_var="PROJECT_${prefix}_USER"
-    local pass_var="PROJECT_${prefix}_PASS"
-    local db_user="${!user_var:-}"
-    local db_pass="${!pass_var:-}"
-
-    [[ -n "$db_name" && -n "$db_user" && -n "$db_pass" ]] || continue
-
-    local db_name_esc db_user_esc db_pass_esc
-    db_name_esc="$(escape_sql_literal "$db_name")"
-    db_user_esc="$(escape_sql_literal "$db_user")"
-    db_pass_esc="$(escape_sql_literal "$db_pass")"
-
-    docker exec -i postgres psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 <<SQL
-DO \$\$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${db_user_esc}') THEN
-    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', '${db_user_esc}', '${db_pass_esc}');
-  ELSE
-    EXECUTE format('ALTER ROLE %I LOGIN PASSWORD %L', '${db_user_esc}', '${db_pass_esc}');
-  END IF;
-END
-\$\$;
-
-SELECT format('CREATE DATABASE %I OWNER %I', '${db_name_esc}', '${db_user_esc}')
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${db_name_esc}') \gexec
-
-SELECT format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', '${db_name_esc}', '${db_user_esc}') \gexec
-SQL
-  done < <(env | sort)
-}
-
-start_remaining_services() {
-  log "Starting all services"
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
-}
-
-run_smoke_tests() {
-  log "Running smoke tests"
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
-
-  docker exec postgres pg_isready -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" >/dev/null
-  docker exec pgbouncer bash -lc "exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}" >/dev/null
-
-  docker exec pg_backup sh /usr/local/bin/backup.sh >/dev/null
-  log "Smoke tests passed (postgres, pgbouncer TCP, backup)"
-}
-
-main() {
-  require_cmd docker
-  require_cmd rg
-  docker compose version >/dev/null 2>&1 || die "docker compose plugin is not installed"
-
-  validate_paths
-  check_env_sanity
-  confirm_destructive
-
-  render_pgbouncer_config_from_env
-  render_userlist_from_env
-
-  clean_start
-  start_postgres
-  ensure_roles_and_dbs_from_env
-  start_remaining_services
-  run_smoke_tests
-
-  echo ""
-  echo "============================================================"
-  echo "Clean install completed successfully."
-  echo "Stack dir: $STACK_DIR"
-  echo "Next: bash \"$STACK_DIR/scripts/healthcheck.sh\""
-  echo "============================================================"
-}
-
-main "$@"
+echo ""
+echo "============================================================"
+echo "Clean install completed."
+echo "Stack dir: $STACK_DIR"
+echo ""
+echo "Next: provision a database"
+echo "  bash $STACK_DIR/scripts/provision-db.sh <db_name> <db_user> <password>"
+echo "============================================================"

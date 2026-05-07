@@ -1,16 +1,39 @@
-# PostgreSQL + PgBouncer stack for Prisma (Docker Compose)
+# PostgreSQL Production Stack
 
-Усе в директорії **`docker/`**. Детальні інструкції: [docker/README.md](docker/README.md).
+> Server-side PostgreSQL 16 operations pack with PgBouncer, automated backups, Prometheus monitoring, and an MCP server for AI-driven database management.
 
-Швидко:
+## Quick Start
 
 ```bash
-git clone https://github.com/Makmillerme/postgressserver-prisma-postgres-stack-v2.git
-cd postgressserver-prisma-postgres-stack-v2/docker
+cd docker
 cp .env.example .env
-# заповни всі CHANGE_ME у .env і синхронізуй пароль pgadmin у pgbouncer/userlist.txt
-chmod +x scripts/*.sh backup/*.sh
-./scripts/install.sh --local --vpn-host YOUR_SERVER_IP --vpn-bind-ip YOUR_SERVER_IP
+# Fill POSTGRES_USER, POSTGRES_PASSWORD, SERVER_PUBLIC_IP
+bash scripts/install.sh --local
+bash scripts/healthcheck.sh
 ```
 
-Репозиторій публічний: у `.env.example` і `userlist.txt` **немає реальних паролів**.
+## Documentation
+
+See [`docker/README.md`](docker/README.md) for full operational documentation.
+
+## MCP Server
+
+[`tools/mcp-postgres-ops/`](tools/mcp-postgres-ops/) — Node.js MCP server that lets Cursor AI manage the PostgreSQL stack: create/drop databases and roles, manage PgBouncer mappings, rotate passwords, trigger backups.
+
+See [`tools/mcp-postgres-ops/README.md`](tools/mcp-postgres-ops/README.md) for setup.
+
+## Repository Structure
+
+```
+├── docker/               # Stack: compose, config, scripts
+│   ├── .env.example
+│   ├── docker-compose.yml
+│   ├── postgres/
+│   ├── pgbouncer/
+│   ├── init/
+│   ├── backup/
+│   ├── monitoring/
+│   └── scripts/
+└── tools/
+    └── mcp-postgres-ops/ # MCP server (Node.js)
+```

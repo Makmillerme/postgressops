@@ -1,0 +1,22 @@
+{
+  "name": "mcp-postgres-ops",
+  "version": "1.0.0",
+  "description": "MCP server for managing the PostgreSQL production stack: databases, roles, PgBouncer mappings, backup.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "mcp-postgres-ops": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "dotenv": "^16.0.0",
+    "pg": "^8.13.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,12 +1,14 @@
 -- ============================================================
--- PostgreSQL Init: Extensions (має виконуватися ПЕРЕД 01 — там dblink)
--- Виконується при першому старті в базі postgres.
+-- PostgreSQL Init: System Extensions Bootstrap
+-- Runs automatically on first container start in database "postgres".
+-- Do NOT add project-specific databases or roles here.
+-- Use scripts/provision-db.sh for project provisioning.
 -- ============================================================
 
--- Потрібно для dblink у скрипті 01 (CREATE DATABASE в DO-блоці)
+-- Required for runtime CREATE DATABASE in PL/pgSQL DO-blocks (dblink).
 CREATE EXTENSION IF NOT EXISTS dblink;
 
--- Корисні розширення (додай за потребою для кожного проєкту)
+-- Uncomment as needed for projects:
 -- CREATE EXTENSION IF NOT EXISTS pg_stat_statements;  -- slow query tracking
--- CREATE EXTENSION IF NOT EXISTS pgcrypto;             -- UUID v4, хешування
+-- CREATE EXTENSION IF NOT EXISTS pgcrypto;             -- UUID v4, hashing
 -- CREATE EXTENSION IF NOT EXISTS unaccent;             -- full-text search

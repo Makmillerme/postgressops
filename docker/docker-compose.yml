@@ -1,10 +1,10 @@
 # ============================================================
-# Production PostgreSQL Stack for Prisma
-#   - postgres       (primary DB)
-#   - pgbouncer      (connection pooler, port 6432)
-#   - backup         (daily pg_dump + rotation)
+# PostgreSQL Production Stack
+#   - postgres          (primary DB)
+#   - pgbouncer         (connection pooler, port 6432)
+#   - backup            (daily pg_dump + rotation)
 #   - postgres_exporter (metrics for Prometheus/Grafana)
-#   - prometheus     (optional, comment out if external)
+#   - prometheus        (optional — comment out if external)
 # ============================================================
 
 networks:
@@ -44,8 +44,8 @@ services:
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     networks:
       - pg_private_net
-    # Порт 5432 НЕ публікується зовні — тільки всередині Docker-мережі.
-    # Для DIRECT_URL (Prisma migrate) підключайся через VPN + SSH тунель:
+    # Port 5432 is NOT published externally — internal Docker network only.
+    # Use an SSH tunnel or VPN for DIRECT_URL / admin access:
     #   ssh -L 5432:localhost:5432 user@your-server
     expose:
       - "5432"
@@ -58,10 +58,10 @@ services:
 
   # -----------------------------------------------------------
   # PgBouncer — Connection Pooler
-  # Prisma DATABASE_URL → host:6432 (transaction pooling)
+  # Clients connect to host:6432 (transaction pooling mode)
   # -----------------------------------------------------------
   pgbouncer:
-    # bitnami/pgbouncer:latest часто відсутній на Docker Hub; legacy-образ з закріпленим тегом.
+    # bitnami/pgbouncer:latest is often unavailable on Docker Hub; pinned legacy tag.
     image: bitnamilegacy/pgbouncer:1.22.1-debian-12-r9
     container_name: pgbouncer
     restart: unless-stopped
@@ -86,19 +86,20 @@ services:
     networks:
       - pg_private_net
     ports:
-      # Публічний IP — для клієнтів ззовні (firewall allowlist).
-      - "91.239.232.91:6432:6432"
-      # Localhost на VPS — діагностика з хоста (127.0.0.1:6432; не плутати з публічним bind вище).
-      - "127.0.0.1:6432:6432"
+      # Public IP — restrict with firewall allowlist.
+      # Change SERVER_PUBLIC_IP in .env or replace with 0.0.0.0 (with firewall).
+      - "${SERVER_PUBLIC_IP:-0.0.0.0}:${PGBOUNCER_LISTEN_PORT:-6432}:6432"
+      # Localhost bind for on-host diagnostics and MCP server.
+      - "127.0.0.1:${PGBOUNCER_LISTEN_PORT:-6432}:6432"
     healthcheck:
-      # PgBouncer не завжди коректно відповідає на pg_isready — перевірка відкритого порту.
+      # PgBouncer does not respond correctly to pg_isready — TCP port check instead.
       test: ["CMD-SHELL", "bash -lc 'exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}'"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # -----------------------------------------------------------
-  # Backup — щоденний pg_dump + ротація
+  # Backup — daily pg_dump + rotation
   # -----------------------------------------------------------
   backup:
     image: postgres:16-alpine
@@ -121,7 +122,7 @@ services:
       - ./backup/restore.sh:/usr/local/bin/restore.sh:ro
     networks:
       - pg_private_net
-    # Cron викликає скрипт через sh — bind-mount часто без +x, прямий exec давав би permission denied.
+    # Cron calls scripts via sh — bind-mounted files often lack +x bit.
     entrypoint: >
       sh -c "
         echo '0 3 * * * sh /usr/local/bin/backup.sh >> /backups/backup.log 2>&1' | crontab - &&
@@ -129,7 +130,7 @@ services:
       "
 
   # -----------------------------------------------------------
-  # postgres_exporter — метрики для Prometheus
+  # postgres_exporter — metrics for Prometheus
   # -----------------------------------------------------------
   postgres_exporter:
     image: prometheuscommunity/postgres-exporter:latest
@@ -139,14 +140,14 @@ services:
       postgres:
         condition: service_started
     environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-postgres}?sslmode=disable"
     networks:
       - pg_private_net
     expose:
       - "9187"
 
   # -----------------------------------------------------------
-  # Prometheus (опційно — видали якщо є зовнішній)
+  # Prometheus (optional — comment out if using external instance)
   # -----------------------------------------------------------
   prometheus:
     image: prom/prometheus:latest
@@ -158,7 +159,7 @@ services:
     networks:
       - pg_private_net
     ports:
-      # Тільки локально або через VPN
+      # Localhost or VPN only — do NOT expose publicly.
       - "127.0.0.1:9090:9090"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"

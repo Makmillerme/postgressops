@@ -33,7 +33,9 @@ if (existsSync(envPath)) {
 
 const CONFIG = {
   pgHost:         process.env.PG_HOST         || "127.0.0.1",
-  pgPort:         parseInt(process.env.PG_PORT || "5432", 10),
+  // On this stack, host-level SQL access is typically through PgBouncer (6432).
+  // Direct 5432 may not be published on the host.
+  pgPort:         parseInt(process.env.PG_PORT || process.env.PGBOUNCER_PORT || "6432", 10),
   pgUser:         process.env.PG_USER         || "pgadmin",
   pgPassword:     process.env.PG_PASSWORD     || "",
   pgDb:           process.env.PG_MAINTENANCE_DB || "postgres",
@@ -141,7 +143,7 @@ server.tool(
         "Containers:",
         ...rows,
         "",
-        `Postgres direct connection: ${pgReady}`,
+        `Postgres SQL connection: ${pgReady}`,
         "",
         "Databases:",
         ...dbs.map(d => `  ${d}`),

@@ -43,6 +43,16 @@ bash scripts/install.sh --local
 bash scripts/healthcheck.sh
 ```
 
+### Server one-command update (recommended)
+
+From repository root:
+
+```bash
+bash scripts/server-update.sh
+```
+
+This flow safely updates running services without volume wipe, prepares MCP env, and validates health.
+
 ---
 
 ## Daily Operations

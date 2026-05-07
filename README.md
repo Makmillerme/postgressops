@@ -5,12 +5,11 @@
 ## Quick Start
 
 ```bash
-cd docker
-cp .env.example .env
-# Fill POSTGRES_USER, POSTGRES_PASSWORD, SERVER_PUBLIC_IP
-bash scripts/install.sh --local
-bash scripts/healthcheck.sh
+git pull
+bash scripts/server-update.sh
 ```
+
+This command updates the stack in-place (no wipe), installs Node.js if missing, prepares MCP runtime env, and validates the final health status.
 
 ## Documentation
 

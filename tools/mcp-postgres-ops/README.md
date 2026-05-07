@@ -2,7 +2,7 @@
 
 Node.js MCP server for managing the PostgreSQL production stack via Cursor AI.
 
-Provides tools to create/drop databases and roles, manage PgBouncer mappings, rotate passwords, run backups — all without SSH access.
+Provides tools to create/drop databases and roles, manage PgBouncer mappings, rotate passwords, and run backups.
 
 ---
 
@@ -33,7 +33,7 @@ Fill in:
 
 ```env
 PG_HOST=127.0.0.1
-PG_PORT=5432
+PG_PORT=6432
 PG_USER=pgadmin
 PG_PASSWORD=your_admin_password
 PG_MAINTENANCE_DB=postgres
@@ -42,12 +42,12 @@ PGBOUNCER_HOST=127.0.0.1
 PGBOUNCER_PORT=6432
 
 # Absolute path to the docker/ directory on the server
-STACK_DIR=/root/apps/postgres-stack/docker
+STACK_DIR=/root/apps/postgres-prisma-stack/postgressserver-prisma-postgres-stack-v2/docker
 
 MCP_LOG_FILE=/var/log/mcp-postgres-ops.log
 ```
 
-### 3. Register in Cursor
+### 3. Register in Cursor (remote server via SSH)
 
 Add to your Cursor MCP config (`~/.cursor/mcp.json` or workspace `.cursor/mcp.json`):
 
@@ -55,29 +55,21 @@ Add to your Cursor MCP config (`~/.cursor/mcp.json` or workspace `.cursor/mcp.js
 {
   "mcpServers": {
     "postgres-ops": {
-      "command": "node",
-      "args": ["/root/apps/postgres-stack/tools/mcp-postgres-ops/src/index.js"],
-      "env": {
-        "PG_HOST": "127.0.0.1",
-        "PG_PORT": "5432",
-        "PG_USER": "pgadmin",
-        "PG_PASSWORD": "your_admin_password",
-        "PG_MAINTENANCE_DB": "postgres",
-        "PGBOUNCER_HOST": "127.0.0.1",
-        "PGBOUNCER_PORT": "6432",
-        "STACK_DIR": "/root/apps/postgres-stack/docker",
-        "MCP_LOG_FILE": "/var/log/mcp-postgres-ops.log"
-      }
+      "command": "ssh",
+      "args": [
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "BatchMode=yes",
+        "-T",
+        "root@91.239.232.91",
+        "cd /root/apps/postgres-prisma-stack/postgressserver-prisma-postgres-stack-v2/tools/mcp-postgres-ops && node src/index.js"
+      ]
     }
   }
 }
 ```
-
-> **Note:** If running Cursor on a local machine and the server is remote, use an SSH tunnel for `PG_HOST`:
-> ```bash
-> ssh -N -L 5432:localhost:5432 -L 6432:localhost:6432 user@your-server
-> ```
-> Then configure `PG_HOST=127.0.0.1` and `STACK_DIR` pointing to a local clone of the repo.
+> Use SSH key-based auth (no password prompt) because MCP stdio transport is non-interactive.
 
 ---
 

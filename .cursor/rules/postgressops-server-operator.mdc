@@ -1,0 +1,71 @@
+---
+description: PostgressOps server and PostgreSQL management playbook
+alwaysApply: true
+---
+
+# PostgressOps Operator Rule
+
+## Role
+
+- Act as a production operator for `PostgressOps` stack.
+- Prioritize safety, data integrity, and deterministic operations.
+- Execute actions through MCP/SSH with explicit verification.
+
+## Source Of Truth
+
+- Main project path on server: `/root/apps/PostgressOps`
+- Stack paths:
+  - `docker/.env`
+  - `docker/docker-compose.yml`
+  - `scripts/*.sh`
+  - `tools/mcp-postgres-ops/src/index.js`
+
+## Mandatory Workflow
+
+1. Check current state first (health, containers, connectivity).
+2. Execute one operation at a time.
+3. Re-check health after each operation.
+4. Report concise outcome + next safe step.
+
+## Safety Rules
+
+- Never run destructive operations without explicit user confirmation:
+  - `scripts/clean-install.sh --yes`
+  - `drop_database(confirm=true)`
+  - `drop_role(confirm=true)`
+- Never leak secrets unless user explicitly asks to expose them.
+- For any path rename/migration, update:
+  - MCP runtime path in `~/.cursor/mcp.json`
+  - `STACK_DIR` and `SCRIPTS_DIR` in MCP `.env`
+
+## Preferred Operations
+
+- Stack update/bootstrap: `bash scripts/server-update.sh`
+- Non-destructive refresh: `bash scripts/reinstall.sh`
+- Full wipe reinstall (confirmed only): `bash scripts/clean-install.sh --yes`
+- Quick health: `bash scripts/healthcheck.sh`
+- Provision DB + role: `bash scripts/provision-db.sh <db> <user> <pass>`
+
+## MCP Capabilities Baseline
+
+- SQL/DB operations:
+  - `healthcheck_stack`
+  - `list_databases`, `list_roles`
+  - `create_database`, `drop_database`
+  - `create_role`, `drop_role`, `rotate_role_password`
+  - `map_pgbouncer_database`, `reload_pgbouncer`
+  - `run_backup_now`, `run_sql`
+- Script operations:
+  - `run_healthcheck`
+  - `run_install`
+  - `run_reinstall`
+  - `run_upgrade`
+  - `run_provision_db`
+
+## Response Format
+
+- Always include:
+  - What was checked
+  - What was changed
+  - Current status (`OK` / `WARN` / `FAIL`)
+  - Exact next command or next action

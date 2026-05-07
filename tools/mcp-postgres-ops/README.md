@@ -1,55 +1,82 @@
-# MCP Postgres Ops
+# MCP Postgres Ops — Cursor Integration
 
-Node.js MCP server for managing the PostgreSQL production stack via Cursor AI.
+Node.js MCP (Model Context Protocol) server that gives your Cursor AI assistant direct control over the PostgreSQL Docker stack: manage databases, roles, PgBouncer, and backups without touching the server manually.
 
-Provides tools to create/drop databases and roles, manage PgBouncer mappings, rotate passwords, and run backups.
+---
+
+## How it works
+
+```
+Cursor (local) ──SSH──► server-update.sh ──► Node.js MCP server
+                                                │
+                                        PgBouncer (port 6432)
+                                                │
+                                        PostgreSQL 16 (internal)
+```
+
+The MCP server runs on the remote server and communicates with Cursor over SSH stdio. All SQL commands go through PgBouncer on port 6432 (the host-exposed port — direct Postgres 5432 is not published).
 
 ---
 
 ## Prerequisites
 
-- Node.js >= 18 installed on the **same machine** that has Docker access to the stack (typically the server, or local via SSH tunnel).
-- The PostgreSQL stack is running (from `docker/`).
+On the **server**:
+- Node.js 20+ (`node --version`)
+- PostgreSQL stack running (`bash docker/scripts/healthcheck.sh`)
+- MCP `.env` configured (see below)
+
+On your **local machine** (Windows/Mac):
+- OpenSSH client
+- SSH key-based auth to the server (no password prompt)
 
 ---
 
 ## Setup
 
-### 1. Install dependencies
+### Step 1 — Run server-update.sh
+
+This single command sets up everything on the server, including the MCP `.env`:
 
 ```bash
-cd tools/mcp-postgres-ops
-npm install
+# On the server:
+cd /root/apps/postgres-stack
+bash scripts/server-update.sh
 ```
 
-### 2. Configure .env
+### Step 2 — Verify the MCP .env on server
 
 ```bash
-cp .env.example .env
-nano .env
+cat /root/apps/postgres-stack/tools/mcp-postgres-ops/.env
 ```
 
-Fill in:
-
+Expected values:
 ```env
 PG_HOST=127.0.0.1
 PG_PORT=6432
-PG_USER=pgadmin
-PG_PASSWORD=your_admin_password
+PG_USER=<your_postgres_user>
+PG_PASSWORD=<your_postgres_password>
 PG_MAINTENANCE_DB=postgres
-
 PGBOUNCER_HOST=127.0.0.1
 PGBOUNCER_PORT=6432
-
-# Absolute path to the docker/ directory on the server
-STACK_DIR=/root/apps/postgres-prisma-stack/postgressserver-prisma-postgres-stack-v2/docker
-
-MCP_LOG_FILE=/var/log/mcp-postgres-ops.log
+STACK_DIR=/root/apps/postgres-stack/docker
 ```
 
-### 3. Register in Cursor (remote server via SSH)
+### Step 3 — Set up SSH key auth (Windows)
 
-Add to your Cursor MCP config (`~/.cursor/mcp.json` or workspace `.cursor/mcp.json`):
+```powershell
+# Generate key (skip if you already have one):
+ssh-keygen --% -t ed25519 -C cursor-mcp -f C:\Users\<you>\.ssh\id_ed25519 -N ""
+
+# Copy public key to server:
+type "$env:USERPROFILE\.ssh\id_ed25519.pub" | ssh root@<SERVER_IP> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+
+# Test (must print "ok" without password prompt):
+ssh -o BatchMode=yes -T root@<SERVER_IP> "echo ok"
+```
+
+### Step 4 — Configure Cursor MCP
+
+Edit (or create) `C:\Users\<you>\.cursor\mcp.json`:
 
 ```json
 {
@@ -57,45 +84,96 @@ Add to your Cursor MCP config (`~/.cursor/mcp.json` or workspace `.cursor/mcp.js
     "postgres-ops": {
       "command": "ssh",
       "args": [
-        "-o",
-        "StrictHostKeyChecking=accept-new",
-        "-o",
-        "BatchMode=yes",
-        "-T",
-        "root@91.239.232.91",
-        "cd /root/apps/postgres-prisma-stack/postgressserver-prisma-postgres-stack-v2/tools/mcp-postgres-ops && node src/index.js"
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-T", "root@<SERVER_IP>",
+        "cd /root/apps/postgres-stack && node tools/mcp-postgres-ops/src/index.js"
       ]
     }
   }
 }
 ```
-> Use SSH key-based auth (no password prompt) because MCP stdio transport is non-interactive.
+
+Replace `<SERVER_IP>` with your actual server IP.
+
+### Step 5 — Reload Cursor MCP
+
+`Ctrl+Shift+P` → **MCP: Reload Servers**
+
+The `postgres-ops` server should appear as connected.
 
 ---
 
-## Available Tools
+## Available tools
 
-| Tool                    | Description                                          | Requires confirm |
-|-------------------------|------------------------------------------------------|------------------|
-| `healthcheck_stack`     | Container states, PG connectivity, last backup       | No               |
-| `list_databases`        | All databases with owner and size                    | No               |
-| `list_roles`            | All roles with attributes                            | No               |
-| `run_sql`               | Read-only SELECT queries on any DB                   | No               |
-| `create_database`       | Create DB + role + PgBouncer entry + userlist        | No               |
-| `drop_database`         | Drop database and remove from PgBouncer              | **Yes**          |
-| `create_role`           | Create role or update password                       | No               |
-| `drop_role`             | Drop role and remove from userlist                   | **Yes**          |
-| `rotate_role_password`  | Change password in Postgres + PgBouncer userlist     | No               |
-| `map_pgbouncer_database`| Add or update a PgBouncer [databases] entry          | No               |
-| `reload_pgbouncer`      | Force-recreate PgBouncer container                   | No               |
-| `run_backup_now`        | Trigger immediate backup.sh                          | No               |
+| Tool                   | Description                                                              | Destructive |
+|------------------------|--------------------------------------------------------------------------|-------------|
+| `healthcheck_stack`    | Container states, SQL connectivity, database list                        |             |
+| `list_databases`       | All non-template DBs with owner and size                                 |             |
+| `list_roles`           | All roles with attributes                                                |             |
+| `create_database`      | Create DB + role + PgBouncer mapping. Idempotent.                        |             |
+| `drop_database`        | Drop DB + remove PgBouncer mapping. Requires `confirm: true`.            | YES         |
+| `create_role`          | Create a role with LOGIN. Updates password if exists.                    |             |
+| `drop_role`            | Drop role. Requires `confirm: true`.                                     | YES         |
+| `rotate_role_password` | Change password in Postgres + update `userlist.txt`                      |             |
+| `map_pgbouncer_database` | Add or update a PgBouncer `[databases]` entry, reload PgBouncer.      |             |
+| `reload_pgbouncer`     | Force-recreate PgBouncer container to apply config changes               |             |
+| `run_backup_now`       | Trigger immediate backup via `backup.sh` in pg_backup container          |             |
+| `run_sql`              | Read-only SELECT queries on the maintenance database                     |             |
 
 ---
 
-## Security Notes
+## Usage examples in Cursor
 
-- Destructive tools (`drop_database`, `drop_role`) require `confirm: true` to execute.
-- `run_sql` is read-only: DDL and DML statements are blocked.
-- Never expose the MCP server on a public port — run it only via stdio (Cursor) or SSH tunnel.
-- Credentials are read from `.env` (gitignored) and never committed.
-- All operations are logged to `MCP_LOG_FILE`.
+In the Cursor chat, you can ask:
+
+- "Create a database `mtrucklending` with owner `mtrucklending_user` and password `Str0ngPass!`"
+- "List all databases and their sizes"
+- "Run a backup now"
+- "Rotate the password for role `app_user` to `NewPass2026!`"
+- "Drop the `old_project` database — confirm"
+- "Show me all active roles"
+
+---
+
+## Troubleshooting
+
+### MCP server fails to start
+
+```bash
+# Test locally on the server:
+cd /root/apps/postgres-stack
+node tools/mcp-postgres-ops/src/index.js
+# Should start without errors (waiting for stdin input)
+```
+
+If you see `FATAL: Missing required env vars` — check `.env` file.
+
+### `ERROR: no such database: postgres`
+
+The `postgres` maintenance DB is not in PgBouncer config. Re-run:
+```bash
+bash scripts/server-update.sh
+```
+
+### `ECONNREFUSED 127.0.0.1:6432`
+
+PgBouncer is not running or not listening on localhost. Check:
+```bash
+docker ps --filter name=pgbouncer
+bash docker/scripts/healthcheck.sh
+```
+
+### SSH connection fails in Cursor
+
+Test from your local terminal:
+```powershell
+ssh -o BatchMode=yes -T root@<SERVER_IP> "echo ok"
+```
+Must print `ok` without a password prompt. If it fails, re-add the SSH key to the server.
+
+### MCP tools not visible in Cursor
+
+1. Check `C:\Users\<you>\.cursor\mcp.json` has the correct server IP and path.
+2. Reload MCP: `Ctrl+Shift+P` → `MCP: Reload Servers`.
+3. Check Cursor MCP logs: `Ctrl+Shift+P` → `MCP: Show Logs`.

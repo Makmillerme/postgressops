@@ -31,19 +31,34 @@ if (existsSync(envPath)) {
   }
 }
 
+// On this stack, host-level SQL access goes through PgBouncer (port 6432).
+// Direct Postgres port 5432 is NOT published on the host by default.
 const CONFIG = {
-  pgHost:         process.env.PG_HOST         || "127.0.0.1",
-  // On this stack, host-level SQL access is typically through PgBouncer (6432).
-  // Direct 5432 may not be published on the host.
+  pgHost:         process.env.PG_HOST          || "127.0.0.1",
   pgPort:         parseInt(process.env.PG_PORT || process.env.PGBOUNCER_PORT || "6432", 10),
-  pgUser:         process.env.PG_USER         || "pgadmin",
-  pgPassword:     process.env.PG_PASSWORD     || "",
+  pgUser:         process.env.PG_USER          || "",
+  pgPassword:     process.env.PG_PASSWORD      || "",
   pgDb:           process.env.PG_MAINTENANCE_DB || "postgres",
-  pgbouncerHost:  process.env.PGBOUNCER_HOST  || "127.0.0.1",
+  pgbouncerHost:  process.env.PGBOUNCER_HOST   || "127.0.0.1",
   pgbouncerPort:  parseInt(process.env.PGBOUNCER_PORT || "6432", 10),
-  stackDir:       process.env.STACK_DIR       || "/opt/postgres-stack/docker",
-  logFile:        process.env.MCP_LOG_FILE    || "/var/log/mcp-postgres-ops.log",
+  stackDir:       process.env.STACK_DIR        || "/opt/postgres-stack/docker",
+  logFile:        process.env.MCP_LOG_FILE     || "/tmp/mcp-postgres-ops.log",
 };
+
+// --- Startup validation ---
+const missingVars = [];
+if (!CONFIG.pgUser)     missingVars.push("PG_USER");
+if (!CONFIG.pgPassword) missingVars.push("PG_PASSWORD");
+if (!CONFIG.stackDir)   missingVars.push("STACK_DIR");
+
+if (missingVars.length > 0) {
+  process.stderr.write(
+    `[mcp-postgres-ops] FATAL: Missing required env vars: ${missingVars.join(", ")}\n` +
+    `  Fix: edit tools/mcp-postgres-ops/.env on the server (copy from .env.example)\n` +
+    `  Then re-run: bash scripts/server-update.sh\n`
+  );
+  process.exit(1);
+}
 
 // --- Helpers ---
 
@@ -66,7 +81,19 @@ function pgClient() {
 
 async function runQuery(sql, params = []) {
   const client = pgClient();
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (e) {
+    const hint = e.message.includes("no such database")
+      ? `\n  Hint: The '${CONFIG.pgDb}' database is not mapped in PgBouncer.\n` +
+        `  Fix: call map_pgbouncer_database with db_name="${CONFIG.pgDb}" pg_db="${CONFIG.pgDb}" pg_user="${CONFIG.pgUser}"\n` +
+        `  Or re-run: bash scripts/server-update.sh`
+      : e.message.includes("ECONNREFUSED")
+        ? `\n  Hint: Cannot reach PgBouncer on ${CONFIG.pgHost}:${CONFIG.pgPort}. Is the stack running?\n` +
+          `  Check: docker ps | grep pgbouncer`
+        : "";
+    throw new Error(e.message + hint);
+  }
   try {
     const result = await client.query(sql, params);
     return result;

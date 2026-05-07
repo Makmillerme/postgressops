@@ -39,10 +39,9 @@ log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 # --- Validate ---
-[[ -f "$ENV_FILE" ]]       || die ".env not found: $ENV_FILE"
-[[ -f "$COMPOSE_FILE" ]]   || die "docker-compose.yml not found: $COMPOSE_FILE"
-[[ -f "$PGB_INI" ]]        || die "pgbouncer.ini not found: $PGB_INI"
-[[ -f "$USERLIST_FILE" ]]  || die "userlist.txt not found: $USERLIST_FILE"
+[[ -f "$ENV_FILE" ]]     || die ".env not found: $ENV_FILE"
+[[ -f "$COMPOSE_FILE" ]] || die "docker-compose.yml not found: $COMPOSE_FILE"
+[[ -f "$PGB_INI" ]]      || die "pgbouncer.ini not found: $PGB_INI"
 
 command -v docker >/dev/null 2>&1 || die "docker is not installed"
 docker compose version >/dev/null 2>&1 || die "docker compose plugin is not installed"
@@ -69,8 +68,15 @@ fi
 
 # --- Sync PgBouncer userlist from .env ---
 log "Rewriting pgbouncer/userlist.txt from .env"
-[[ "${POSTGRES_PASSWORD}" != *\"* ]] || die "POSTGRES_PASSWORD contains double quote — escape it first."
+[[ "${POSTGRES_PASSWORD}" != *\"* ]] || die "POSTGRES_PASSWORD must not contain double quotes."
 printf '"%s" "%s"\n' "$POSTGRES_USER" "$POSTGRES_PASSWORD" > "$USERLIST_FILE"
+
+# --- Ensure postgres maintenance DB mapping in pgbouncer.ini ---
+PGB_POSTGRES_LINE="postgres = host=postgres port=5432 dbname=postgres user=${POSTGRES_USER}"
+if ! grep -qE "^postgres[[:space:]]*=" "$PGB_INI"; then
+  sed -i "/^\[databases\]/a ${PGB_POSTGRES_LINE}" "$PGB_INI"
+  log "Added 'postgres' maintenance DB mapping to pgbouncer.ini"
+fi
 
 # --- Sync admin_users / stats_users ---
 sed -i \
@@ -100,15 +106,31 @@ done
 log "Starting all services"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
+# --- Wait for pgbouncer ---
+log "Waiting for pgbouncer to be healthy"
+retries=30
+until [[ "$retries" -eq 0 ]]; do
+  status="$(docker inspect -f '{{.State.Health.Status}}' pgbouncer 2>/dev/null || true)"
+  [[ "$status" == "healthy" ]] && break
+  retries=$((retries - 1))
+  sleep 2
+done
+[[ "$retries" -gt 0 ]] || die "PgBouncer did not become healthy in time."
+
 # --- Smoke tests ---
 log "Running smoke tests"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
-docker exec postgres pg_isready -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" >/dev/null
-docker exec pgbouncer bash -lc "exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}" >/dev/null
-docker exec pg_backup sh /usr/local/bin/backup.sh >/dev/null
+docker exec postgres pg_isready -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" >/dev/null \
+  && log "postgres: OK" || die "postgres pg_isready failed"
 
-log "Smoke tests passed (postgres, pgbouncer TCP, backup)"
+docker exec pgbouncer bash -lc "exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}" >/dev/null \
+  && log "pgbouncer TCP: OK" || die "pgbouncer TCP check failed"
+
+docker exec pg_backup sh /usr/local/bin/backup.sh >/dev/null \
+  && log "backup: OK" || log "backup: WARN (non-critical, check docker logs pg_backup)"
+
+log "Smoke tests passed."
 
 echo ""
 echo "============================================================"

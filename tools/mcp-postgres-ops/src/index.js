@@ -265,20 +265,21 @@ server.tool(
     log("create_database", `db=${db_name} user=${db_user}`);
     const steps = [];
     try {
+      const escapedPass = pg.escapeLiteral(password);
+
       // 1. Create role if not exists, or update password
-      const roleExists = await runQuery("SELECT 1 FROM pg_roles WHERE rolname = $1", [db_user]);
+      const roleExists = await runQuery(`SELECT 1 FROM pg_roles WHERE rolname = '${db_user}'`);
       if (roleExists.rowCount === 0) {
-        await runQuery(`CREATE ROLE "${db_user}" LOGIN PASSWORD $1`, [password]);
+        await runQuery(`CREATE ROLE "${db_user}" LOGIN PASSWORD ${escapedPass}`);
         steps.push(`Role '${db_user}' created.`);
       } else {
-        await runQuery(`ALTER ROLE "${db_user}" LOGIN PASSWORD $1`, [password]);
+        await runQuery(`ALTER ROLE "${db_user}" LOGIN PASSWORD ${escapedPass}`);
         steps.push(`Role '${db_user}' exists — password updated.`);
       }
 
       // 2. Create database if not exists
-      const dbExists = await runQuery("SELECT 1 FROM pg_database WHERE datname = $1", [db_name]);
+      const dbExists = await runQuery(`SELECT 1 FROM pg_database WHERE datname = '${db_name}'`);
       if (dbExists.rowCount === 0) {
-        // Cannot use parameterized for DDL identifiers
         await runQuery(`CREATE DATABASE "${db_name}" OWNER "${db_user}"`);
         steps.push(`Database '${db_name}' created.`);
       } else {
@@ -373,12 +374,13 @@ server.tool(
   async ({ role_name, password }) => {
     log("create_role", `role=${role_name}`);
     try {
-      const exists = await runQuery("SELECT 1 FROM pg_roles WHERE rolname = $1", [role_name]);
+      const escapedPass = pg.escapeLiteral(password);
+      const exists = await runQuery(`SELECT 1 FROM pg_roles WHERE rolname = '${role_name}'`);
       if (exists.rowCount === 0) {
-        await runQuery(`CREATE ROLE "${role_name}" LOGIN PASSWORD $1`, [password]);
+        await runQuery(`CREATE ROLE "${role_name}" LOGIN PASSWORD ${escapedPass}`);
         return { content: [{ type: "text", text: `Role '${role_name}' created.` }] };
       } else {
-        await runQuery(`ALTER ROLE "${role_name}" LOGIN PASSWORD $1`, [password]);
+        await runQuery(`ALTER ROLE "${role_name}" LOGIN PASSWORD ${escapedPass}`);
         return { content: [{ type: "text", text: `Role '${role_name}' exists — password updated.` }] };
       }
     } catch (e) {
@@ -436,7 +438,8 @@ server.tool(
   async ({ role_name, new_password }) => {
     log("rotate_role_password", `role=${role_name}`);
     try {
-      await runQuery(`ALTER ROLE "${role_name}" PASSWORD $1`, [new_password]);
+      const escapedPass = pg.escapeLiteral(new_password);
+      await runQuery(`ALTER ROLE "${role_name}" PASSWORD ${escapedPass}`);
 
       let userlist = readFile(userlistPath());
       const pattern = new RegExp(`^"${role_name}"\\s+"[^"]*"`, "m");

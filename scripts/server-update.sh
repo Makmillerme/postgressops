@@ -88,7 +88,7 @@ git -C "$REPO_DIR" pull --ff-only origin "$CURRENT_BRANCH" \
   || { log "WARNING: git pull failed (network/conflict). Continuing with local state."; }
 
 # Ensure scripts are executable after pull
-chmod +x "$DOCKER_DIR/scripts/"*.sh "$DOCKER_DIR/backup/"*.sh 2>/dev/null || true
+chmod +x "$SCRIPT_DIR/"*.sh "$DOCKER_DIR/backup/"*.sh 2>/dev/null || true
 chmod +x "$SCRIPT_DIR/"*.sh 2>/dev/null || true
 
 # ============================================================
@@ -206,6 +206,14 @@ else
 fi
 ok "STACK_DIR set to $REAL_DOCKER_DIR"
 
+REAL_SCRIPTS_DIR="$(realpath "$SCRIPT_DIR")"
+if grep -q "^SCRIPTS_DIR=" "$MCP_ENV_FILE"; then
+  sed -i "s|^SCRIPTS_DIR=.*|SCRIPTS_DIR=${REAL_SCRIPTS_DIR}|" "$MCP_ENV_FILE"
+else
+  echo "SCRIPTS_DIR=${REAL_SCRIPTS_DIR}" >> "$MCP_ENV_FILE"
+fi
+ok "SCRIPTS_DIR set to $REAL_SCRIPTS_DIR"
+
 # Fill in credentials from docker/.env if still placeholders
 if grep -q "CHANGE_ME_" "$MCP_ENV_FILE"; then
   sed -i \
@@ -229,7 +237,7 @@ ok "npm install complete"
 # ============================================================
 step "Final stack healthcheck"
 
-bash "$DOCKER_DIR/scripts/healthcheck.sh" || true
+bash "$SCRIPT_DIR/healthcheck.sh" || true
 
 # ============================================================
 # Summary

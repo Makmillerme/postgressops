@@ -42,8 +42,12 @@ const CONFIG = {
   pgbouncerHost:  process.env.PGBOUNCER_HOST   || "127.0.0.1",
   pgbouncerPort:  parseInt(process.env.PGBOUNCER_PORT || "6432", 10),
   stackDir:       process.env.STACK_DIR        || "/opt/postgres-stack/docker",
+  scriptsDir:     process.env.SCRIPTS_DIR      || "",
   logFile:        process.env.MCP_LOG_FILE     || "/tmp/mcp-postgres-ops.log",
 };
+if (!CONFIG.scriptsDir) {
+  CONFIG.scriptsDir = path.join(path.dirname(CONFIG.stackDir), "scripts");
+}
 
 // --- Startup validation ---
 const missingVars = [];
@@ -123,6 +127,32 @@ function composeCli() {
   return `docker compose -f "${composeFile()}" --env-file "${envFile()}"`;
 }
 
+const SCRIPT_ALLOWLIST = new Set([
+  "install.sh",
+  "reinstall.sh",
+  "clean-install.sh",
+  "upgrade.sh",
+  "healthcheck.sh",
+  "provision-db.sh",
+  "list-connections.sh",
+  "server-update.sh",
+]);
+
+function runScript(scriptName, args = []) {
+  if (!SCRIPT_ALLOWLIST.has(scriptName)) {
+    throw new Error(`Script is not allowed: ${scriptName}`);
+  }
+  if (!Array.isArray(args)) {
+    throw new Error("args must be an array");
+  }
+  const sanitized = args.map((arg) => {
+    if (typeof arg !== "string") throw new Error("script args must be strings");
+    return `'${arg.replace(/'/g, "'\\''")}'`;
+  });
+  const scriptPath = path.join(CONFIG.scriptsDir, scriptName);
+  return shellExec(`bash "${scriptPath}" ${sanitized.join(" ")}`.trim());
+}
+
 // --- MCP Server ---
 const server = new McpServer({
   name: "mcp-postgres-ops",
@@ -179,6 +209,80 @@ server.tool(
       return { content: [{ type: "text", text: lines.join("\n") }] };
     } catch (e) {
       log("healthcheck_stack", `ERROR: ${e.message}`);
+      return { content: [{ type: "text", text: `ERROR: ${e.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "run_healthcheck",
+  "Run scripts/healthcheck.sh and return output.",
+  {},
+  async () => {
+    try {
+      const out = runScript("healthcheck.sh");
+      return { content: [{ type: "text", text: out }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `ERROR: ${e.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "run_install",
+  "Run scripts/install.sh --local.",
+  {},
+  async () => {
+    try {
+      const out = runScript("install.sh", ["--local"]);
+      return { content: [{ type: "text", text: out }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `ERROR: ${e.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "run_reinstall",
+  "Run scripts/reinstall.sh (no volume wipe).",
+  {},
+  async () => {
+    try {
+      const out = runScript("reinstall.sh");
+      return { content: [{ type: "text", text: out }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `ERROR: ${e.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "run_upgrade",
+  "Run scripts/upgrade.sh.",
+  {},
+  async () => {
+    try {
+      const out = runScript("upgrade.sh");
+      return { content: [{ type: "text", text: out }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `ERROR: ${e.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "run_provision_db",
+  "Run scripts/provision-db.sh <db_name> <db_user> <password>.",
+  {
+    db_name: z.string().min(1).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
+    db_user: z.string().min(1).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
+    password: z.string().min(8),
+  },
+  async ({ db_name, db_user, password }) => {
+    try {
+      const out = runScript("provision-db.sh", [db_name, db_user, password]);
+      return { content: [{ type: "text", text: out }] };
+    } catch (e) {
       return { content: [{ type: "text", text: `ERROR: ${e.message}` }] };
     }
   }

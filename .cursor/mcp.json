@@ -2,16 +2,16 @@
   "mcpServers": {
     "postgres-ops": {
       "command": "node",
-      "args": ["/root/apps/postgres-stack/tools/mcp-postgres-ops/src/index.js"],
+      "args": ["/root/apps/postgres-prisma-stack/tools/mcp-postgres-ops/src/index.js"],
       "env": {
         "PG_HOST": "127.0.0.1",
         "PG_PORT": "5432",
-        "PG_USER": "pgadmin",
-        "PG_PASSWORD": "CHANGE_ME",
+        "PG_USER": "Makmiller",
+        "PG_PASSWORD": "Rty45678+",
         "PG_MAINTENANCE_DB": "postgres",
         "PGBOUNCER_HOST": "127.0.0.1",
         "PGBOUNCER_PORT": "6432",
-        "STACK_DIR": "/root/apps/postgres-stack/docker",
+        "STACK_DIR": "/root/apps/postgres-prisma-stack/docker",
         "MCP_LOG_FILE": "/var/log/mcp-postgres-ops.log"
       }
     }

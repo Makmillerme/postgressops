@@ -72,6 +72,14 @@ fi
 # --- Make scripts executable ---
 chmod +x "$STACK_DIR/scripts/"*.sh "$STACK_DIR/backup/"*.sh
 
+# --- Ensure initial PgBouncer auth file exists ---
+set -a && source "$ENV_FILE" && set +a
+USERLIST_FILE="$STACK_DIR/pgbouncer/userlist.txt"
+if [[ ! -f "$USERLIST_FILE" ]] || ! grep -q "^\"${POSTGRES_USER}\" " "$USERLIST_FILE"; then
+  log "Writing initial PgBouncer userlist for admin user"
+  printf '"%s" "%s"\n' "$POSTGRES_USER" "$POSTGRES_PASSWORD" > "$USERLIST_FILE"
+fi
+
 # --- Start stack ---
 log "Starting stack…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d

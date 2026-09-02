@@ -1,6 +1,6 @@
 # PostgreSQL + MCP Pack (Єдиний README)
 
-Автономний серверний пакет PostgreSQL 16 + PgBouncer + backup + monitoring + MCP для Cursor.
+Автономний серверний пакет PostgreSQL 16 + PgBouncer + backup + MCP для Cursor.
 
 ## Структура (організована)
 
@@ -12,7 +12,7 @@
 │   ├── backup/
 │   ├── init/
 │   ├── pgbouncer/
-│   └── prometheus/
+│   └── postgres/
 ├── scripts/
 │   ├── install.sh
 │   ├── reinstall.sh
@@ -35,7 +35,6 @@
 - PostgreSQL 16 (внутрішній сервіс)
 - PgBouncer (`SERVER_PUBLIC_IP:6432`)
 - `pg_backup` (cron + manual backup)
-- `postgres_exporter` + Prometheus
 - MCP (`tools/mcp-postgres-ops`) для керування стеком через Cursor
 
 ## Підготовка

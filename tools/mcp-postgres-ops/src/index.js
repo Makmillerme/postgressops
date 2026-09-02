@@ -171,7 +171,7 @@ server.tool(
   async () => {
     log("healthcheck_stack", "called");
     try {
-      const containers = ["postgres", "pgbouncer", "pg_backup", "postgres_exporter", "prometheus"];
+      const containers = ["postgres", "pgbouncer", "pg_backup"];
       const rows = [];
       for (const name of containers) {
         try {

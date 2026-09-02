@@ -1,10 +1,8 @@
 # ============================================================
-# PostgreSQL Production Stack
-#   - postgres          (primary DB)
-#   - pgbouncer         (connection pooler, port 6432)
-#   - backup            (daily pg_dump + rotation)
-#   - postgres_exporter (metrics for Prometheus/Grafana)
-#   - prometheus        (optional — comment out if external)
+# PostgreSQL Production Stack (lean)
+#   - postgres   (primary DB)
+#   - pgbouncer  (connection pooler, port 6432)
+#   - backup     (daily pg_dump + rotation)
 # ============================================================
 
 networks:
@@ -18,8 +16,6 @@ volumes:
   pg_wal_archive:
     driver: local
   pg_backups:
-    driver: local
-  prometheus_data:
     driver: local
 
 services:
@@ -132,42 +128,3 @@ services:
         echo '0 3 * * * sh /usr/local/bin/backup.sh >> /backups/backup.log 2>&1' | crontab - &&
         crond -f -l 6
       "
-
-  # -----------------------------------------------------------
-  # postgres_exporter — metrics for Prometheus
-  # -----------------------------------------------------------
-  postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    container_name: postgres_exporter
-    restart: unless-stopped
-    mem_limit: 64m
-    depends_on:
-      postgres:
-        condition: service_started
-    environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-postgres}?sslmode=disable"
-    networks:
-      - pg_private_net
-    expose:
-      - "9187"
-
-  # -----------------------------------------------------------
-  # Prometheus (optional — comment out if using external instance)
-  # -----------------------------------------------------------
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    restart: unless-stopped
-    mem_limit: 128m
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    networks:
-      - pg_private_net
-    ports:
-      # Localhost or VPN only — do NOT expose publicly.
-      - "127.0.0.1:9090:9090"
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=7d"
-      - "--web.enable-lifecycle"

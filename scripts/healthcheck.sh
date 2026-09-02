@@ -42,8 +42,6 @@ check "postgres healthcheck healthy"   "container_healthy postgres"
 check "pgbouncer container running"    "container_running pgbouncer"
 check "pgbouncer healthcheck healthy"  "container_healthy pgbouncer"
 check "pg_backup container running"    "container_running pg_backup"
-check "postgres_exporter running"      "container_running postgres_exporter"
-check "prometheus running"             "container_running prometheus"
 
 echo ""
 echo "Connectivity:"

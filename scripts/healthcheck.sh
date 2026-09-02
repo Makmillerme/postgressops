@@ -23,17 +23,27 @@ check() {
   fi
 }
 
+container_running() {
+  local name="$1"
+  [[ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || echo false)" == "true" ]]
+}
+
+container_healthy() {
+  local name="$1"
+  [[ "$(docker inspect -f '{{.State.Health.Status}}' "$name" 2>/dev/null || echo "")" == "healthy" ]]
+}
+
 echo ""
 echo "=== PostgreSQL Stack Health Check ==="
 echo ""
 echo "Services:"
-check "postgres container running"     "docker inspect -f '{{.State.Running}}' postgres | rg -q true"
-check "postgres healthcheck healthy"   "docker inspect -f '{{.State.Health.Status}}' postgres | rg -q healthy"
-check "pgbouncer container running"    "docker inspect -f '{{.State.Running}}' pgbouncer | rg -q true"
-check "pgbouncer healthcheck healthy"  "docker inspect -f '{{.State.Health.Status}}' pgbouncer | rg -q healthy"
-check "pg_backup container running"    "docker inspect -f '{{.State.Running}}' pg_backup | rg -q true"
-check "postgres_exporter running"      "docker inspect -f '{{.State.Running}}' postgres_exporter | rg -q true"
-check "prometheus running"             "docker inspect -f '{{.State.Running}}' prometheus | rg -q true"
+check "postgres container running"     "container_running postgres"
+check "postgres healthcheck healthy"   "container_healthy postgres"
+check "pgbouncer container running"    "container_running pgbouncer"
+check "pgbouncer healthcheck healthy"  "container_healthy pgbouncer"
+check "pg_backup container running"    "container_running pg_backup"
+check "postgres_exporter running"      "container_running postgres_exporter"
+check "prometheus running"             "container_running prometheus"
 
 echo ""
 echo "Connectivity:"
@@ -57,6 +67,6 @@ docker exec postgres psql -U "$POSTGRES_USER" -d postgres -tAc \
 
 echo ""
 echo "PgBouncer mappings:"
-rg "^[a-zA-Z].*= host=postgres" "$PGB_INI" | awk '{print "  " $0}' || true
+grep -E '^[a-zA-Z].*= host=postgres' "$PGB_INI" | awk '{print "  " $0}' || true
 echo ""
 

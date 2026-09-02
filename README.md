@@ -2,14 +2,16 @@
 
 Автономний серверний пакет PostgreSQL 16 + PgBouncer + backup + MCP для Cursor.
 
-## Структура (організована)
+Lean-стек: **3 контейнери** (`postgres`, `pgbouncer`, `pg_backup`). Prometheus, postgres_exporter і Grafana **не входять**.
+
+## Структура
 
 ```
 .
 ├── docker/
 │   ├── docker-compose.yml
 │   ├── .env.example
-│   ├── backup/
+│   ├── backup/          # backup.sh, restore.sh (монтуються в pg_backup)
 │   ├── init/
 │   ├── pgbouncer/
 │   └── postgres/
@@ -21,20 +23,26 @@
 │   ├── healthcheck.sh
 │   ├── provision-db.sh
 │   ├── list-connections.sh
-│   └── server-update.sh
+│   ├── server-update.sh
+│   ├── mcp-run.sh
+│   ├── mcp-ssh-entrypoint.sh
+│   └── lib/
 ├── tools/mcp-postgres-ops/
 │   ├── src/index.js
 │   └── .env.example
+├── .cursor/
+│   ├── mcp.postgressops.example.json
+│   └── rules/
 └── README.md
 ```
 
-`scripts/` — єдина папка для всіх операційних shell-скриптів.
+`scripts/` — операційні shell-скрипти. Після `git clone` вони executable (`100755`).
 
 ## Компоненти
 
-- PostgreSQL 16 (внутрішній сервіс)
-- PgBouncer (`SERVER_PUBLIC_IP:6432`)
-- `pg_backup` (cron + manual backup)
+- PostgreSQL 16 (внутрішня мережа Docker, порт 5432 **не** публікується назовні)
+- PgBouncer (`SERVER_PUBLIC_IP:6432` + localhost:6432) — єдиний вхід для apps і MCP
+- `pg_backup` — cron `pg_dump` о 03:00 UTC + ручний запуск
 - MCP (`tools/mcp-postgres-ops`) для керування стеком через Cursor
 
 ## Підготовка

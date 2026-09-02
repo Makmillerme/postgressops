@@ -39,6 +39,10 @@ else
   REPO_DIR="$TARGET_DIR"
 fi
 
+# shellcheck source=lib/ensure-executable.sh
+source "$REPO_DIR/scripts/lib/ensure-executable.sh"
+ensure_postgressops_executable "$REPO_DIR"
+
 DOCKER_DIR="$REPO_DIR/docker"
 SCRIPTS_DIR="$REPO_DIR/scripts"
 ENV_FILE="$DOCKER_DIR/.env"
@@ -57,22 +61,20 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 0
 fi
 
-if rg "CHANGE_ME_" "$ENV_FILE" >/dev/null 2>&1; then
+if grep -q "CHANGE_ME_" "$ENV_FILE"; then
   die "Replace all CHANGE_ME_* values in $ENV_FILE then rerun."
 fi
 
-chmod +x "$SCRIPTS_DIR/"*.sh "$DOCKER_DIR/backup/"*.sh 2>/dev/null || true
-
 set -a && source "$ENV_FILE" && set +a
 
-if [[ ! -f "$USERLIST_FILE" ]] || ! rg "^\"${POSTGRES_USER}\" " "$USERLIST_FILE" >/dev/null 2>&1; then
+if [[ ! -f "$USERLIST_FILE" ]] || ! grep -q "^\"${POSTGRES_USER}\" " "$USERLIST_FILE"; then
   [[ "${POSTGRES_PASSWORD}" != *\"* ]] || die "POSTGRES_PASSWORD must not contain double quotes."
   printf '"%s" "%s"\n' "$POSTGRES_USER" "$POSTGRES_PASSWORD" > "$USERLIST_FILE"
   log "Wrote admin user to userlist.txt"
 fi
 
 PGB_POSTGRES_LINE="postgres = host=postgres port=5432 dbname=postgres user=${POSTGRES_USER}"
-if ! rg "^postgres[[:space:]]*=" "$PGB_INI" >/dev/null 2>&1; then
+if ! grep -qE "^postgres[[:space:]]*=" "$PGB_INI"; then
   sed -i "/^\[databases\]/a ${PGB_POSTGRES_LINE}" "$PGB_INI"
   log "Added postgres mapping to pgbouncer.ini"
 fi

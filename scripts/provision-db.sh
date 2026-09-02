@@ -44,11 +44,11 @@ SELECT format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', '${DB_NAME}', '${DB_U
 SQL
 
 PGB_LINE="${DB_NAME} = host=postgres port=5432 dbname=${DB_NAME} user=${DB_USER}"
-if ! rg "^${DB_NAME}[[:space:]]*=" "$PGB_INI" >/dev/null 2>&1; then
+if ! grep -qE "^${DB_NAME}[[:space:]]*=" "$PGB_INI"; then
   sed -i "/^\[databases\]/a ${PGB_LINE}" "$PGB_INI"
 fi
 
-if rg "\"${DB_USER}\"" "$USERLIST_FILE" >/dev/null 2>&1; then
+if grep -q "\"${DB_USER}\"" "$USERLIST_FILE"; then
   sed -i "s|\"${DB_USER}\" \".*\"|\"${DB_USER}\" \"${DB_PASS}\"|" "$USERLIST_FILE"
 else
   printf '"%s" "%s"\n' "$DB_USER" "$DB_PASS" >> "$USERLIST_FILE"

@@ -88,8 +88,9 @@ git -C "$REPO_DIR" pull --ff-only origin "$CURRENT_BRANCH" \
   || { log "WARNING: git pull failed (network/conflict). Continuing with local state."; }
 
 # Ensure scripts are executable after pull
-chmod +x "$SCRIPT_DIR/"*.sh "$DOCKER_DIR/backup/"*.sh 2>/dev/null || true
-chmod +x "$SCRIPT_DIR/"*.sh 2>/dev/null || true
+# shellcheck source=lib/ensure-executable.sh
+source "$SCRIPT_DIR/lib/ensure-executable.sh"
+ensure_postgressops_executable "$REPO_DIR"
 
 # ============================================================
 # Step 3: Ensure docker/.env exists

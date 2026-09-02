@@ -18,11 +18,14 @@ if [[ ! -f "${POSTGRESSOPS_HOME}/scripts/mcp-run.sh" ]]; then
   else
     git clone "${POSTGRESSOPS_REPO}" "${POSTGRESSOPS_HOME}"
   fi
-  chmod +x "${POSTGRESSOPS_HOME}/scripts/"*.sh 2>/dev/null || true
   if [[ -f "${POSTGRESSOPS_HOME}/docker/.env.example" && ! -f "${POSTGRESSOPS_HOME}/docker/.env" ]]; then
     cp "${POSTGRESSOPS_HOME}/docker/.env.example" "${POSTGRESSOPS_HOME}/docker/.env"
     echo "[postgressops] Created docker/.env — fill credentials, then: bash scripts/server-update.sh" >&2
   fi
 fi
 
-exec "${POSTGRESSOPS_HOME}/scripts/mcp-run.sh"
+# shellcheck source=lib/ensure-executable.sh
+source "${POSTGRESSOPS_HOME}/scripts/lib/ensure-executable.sh"
+ensure_postgressops_executable "${POSTGRESSOPS_HOME}"
+
+exec bash "${POSTGRESSOPS_HOME}/scripts/mcp-run.sh"

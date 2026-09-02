@@ -31,7 +31,7 @@ set -a && source "$ENV_FILE" && set +a
 [[ -n "${POSTGRES_USER:-}" ]] || die "POSTGRES_USER is empty in .env"
 [[ -n "${POSTGRES_PASSWORD:-}" ]] || die "POSTGRES_PASSWORD is empty in .env"
 
-if rg "CHANGE_ME_" "$ENV_FILE" >/dev/null 2>&1; then
+if grep -q "CHANGE_ME_" "$ENV_FILE"; then
   die "Replace all CHANGE_ME_* values in $ENV_FILE before running."
 fi
 
@@ -45,7 +45,7 @@ fi
 printf '"%s" "%s"\n' "$POSTGRES_USER" "$POSTGRES_PASSWORD" > "$USERLIST_FILE"
 
 PGB_POSTGRES_LINE="postgres = host=postgres port=5432 dbname=postgres user=${POSTGRES_USER}"
-if ! rg "^postgres[[:space:]]*=" "$PGB_INI" >/dev/null 2>&1; then
+if ! grep -qE "^postgres[[:space:]]*=" "$PGB_INI"; then
   sed -i "/^\[databases\]/a ${PGB_POSTGRES_LINE}" "$PGB_INI"
 fi
 sed -i \

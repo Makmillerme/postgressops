@@ -8,7 +8,7 @@ When user asks for PostgresOps actions, execute this sequence:
 
 1. **Inspect**
    - Run health and state checks first.
-   - Confirm active server path is `/root/apps/PostgressOps`.
+   - Confirm active server path: `POSTGRESSOPS_HOME` (default `/opt/postgressops`).
 2. **Operate**
    - Perform requested action via MCP tool or `scripts/*.sh`.
 3. **Verify**

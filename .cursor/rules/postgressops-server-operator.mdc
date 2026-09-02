@@ -13,8 +13,8 @@ alwaysApply: true
 
 ## Source Of Truth
 
-- Main project path on server: `/root/apps/PostgressOps`
-- Stack paths:
+- Main project path on server: `POSTGRESSOPS_HOME` (default `/opt/postgressops`)
+- Stack paths (under `POSTGRESSOPS_HOME`):
   - `docker/.env`
   - `docker/docker-compose.yml`
   - `scripts/*.sh`
@@ -35,7 +35,7 @@ alwaysApply: true
   - `drop_role(confirm=true)`
 - Never leak secrets unless user explicitly asks to expose them.
 - For any path rename/migration, update:
-  - MCP runtime path in `~/.cursor/mcp.json`
+  - MCP runtime: `POSTGRESSOPS_HOME` in `~/.cursor/mcp.json` remote SSH command
   - `STACK_DIR` and `SCRIPTS_DIR` in MCP `.env`
 
 ## Preferred Operations

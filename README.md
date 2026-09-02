@@ -40,8 +40,12 @@
 
 ## Підготовка
 
+Стандартний шлях установки: **`/opt/postgressops`** (змінюється через `POSTGRESSOPS_HOME`).
+
 ```bash
-cd /root/apps/PostgressOps
+export POSTGRESSOPS_HOME=/opt/postgressops   # або свій шлях
+git clone https://github.com/Makmillerme/postgressops.git "$POSTGRESSOPS_HOME"
+cd "$POSTGRESSOPS_HOME"
 cp docker/.env.example docker/.env
 nano docker/.env
 ```
@@ -97,30 +101,65 @@ bash scripts/list-connections.sh
 
 ## MCP setup (Cursor, SSH mode)
 
-1. На сервері:
+Репозиторій: **https://github.com/Makmillerme/postgressops**
+
+Шаблон для `~/.cursor/mcp.json`: [`.cursor/mcp.postgressops.example.json`](.cursor/mcp.postgressops.example.json)
+
+### 1) На сервері (перший раз)
+
 ```bash
-cd /root/apps/PostgressOps
+export POSTGRESSOPS_HOME=/opt/postgressops   # змініть за потреби
+git clone https://github.com/Makmillerme/postgressops.git "$POSTGRESSOPS_HOME"
+cd "$POSTGRESSOPS_HOME"
+cp docker/.env.example docker/.env && nano docker/.env
 bash scripts/server-update.sh
 ```
 
-2. Локально додайте в `~/.cursor/mcp.json`:
+### 2) Локально — `~/.cursor/mcp.json`
+
+Додайте блок `_postgressops` (метадані для AI) і сервер `postgres-ops`:
+
 ```json
 {
+  "_postgressops": {
+    "repo": "https://github.com/Makmillerme/postgressops.git",
+    "defaultInstallPath": "/opt/postgressops",
+    "docs": "https://github.com/Makmillerme/postgressops#mcp-setup-cursor-ssh-mode"
+  },
   "mcpServers": {
     "postgres-ops": {
       "command": "ssh",
       "args": [
         "-o", "BatchMode=yes",
         "-o", "StrictHostKeyChecking=accept-new",
-        "-T", "root@<SERVER_IP>",
-        "cd /root/apps/PostgressOps && node tools/mcp-postgres-ops/src/index.js"
-      ]
+        "-T", "root@YOUR_SERVER_IP",
+        "POSTGRESSOPS_HOME=/opt/postgressops POSTGRESSOPS_REPO=https://github.com/Makmillerme/postgressops.git bash -lc 'curl -fsSL https://raw.githubusercontent.com/Makmillerme/postgressops/main/scripts/mcp-ssh-entrypoint.sh | bash -s'"
+      ],
+      "postgressops": {
+        "repo": "https://github.com/Makmillerme/postgressops.git",
+        "installPath": "/opt/postgressops",
+        "docs": "https://github.com/Makmillerme/postgressops#mcp-setup-cursor-ssh-mode"
+      }
     }
   }
 }
 ```
 
-3. Reload: `Ctrl+Shift+P` -> `MCP: Reload Servers`.
+**Якщо репо вже на сервері** (швидший варіант, без curl):
+
+```json
+"POSTGRESSOPS_HOME=/opt/postgressops POSTGRESSOPS_REPO=https://github.com/Makmillerme/postgressops.git bash /opt/postgressops/scripts/mcp-ssh-entrypoint.sh"
+```
+
+Змініть:
+- `YOUR_SERVER_IP` — IP або hostname сервера
+- `/opt/postgressops` — ваш `POSTGRESSOPS_HOME`
+
+### 3) Reload
+
+`Ctrl+Shift+P` → `MCP: Reload Servers`
+
+Cursor AI прочитає `_postgressops` / `postgressops` і зможе сама клонувати репо та запустити `server-update.sh` на SSH-сервері.
 
 ## MCP tools (основні)
 

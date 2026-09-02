@@ -1,0 +1,46 @@
+---
+description: Bootstrap PostgressOps MCP from GitHub when SSH server is available
+globs:
+  - "**/.cursor/mcp.json"
+  - "**/mcp.json"
+alwaysApply: false
+---
+
+# PostgressOps MCP Bootstrap
+
+When the user connects `postgres-ops` MCP or asks to set up PostgreSQL ops on a remote server:
+
+## Read config first
+
+Check `~/.cursor/mcp.json` for:
+- `mcpServers.postgres-ops.args` — SSH user@host
+- `mcpServers.postgres-ops.postgressops.installPath` or env `POSTGRESSOPS_HOME` in remote command
+- `_postgressops` block — repo URL and bootstrap steps
+
+Default install path: **`/opt/postgressops`** (override per user in mcp.json).
+
+Repository: **https://github.com/Makmillerme/postgressops.git**
+
+## Bootstrap on server (if stack missing or MCP fails)
+
+```bash
+export POSTGRESSOPS_HOME="${POSTGRESSOPS_HOME:-/opt/postgressops}"
+export POSTGRESSOPS_REPO="https://github.com/Makmillerme/postgressops.git"
+git clone "$POSTGRESSOPS_REPO" "$POSTGRESSOPS_HOME"  # skip if exists
+cd "$POSTGRESSOPS_HOME"
+cp docker/.env.example docker/.env   # user fills secrets
+bash scripts/server-update.sh
+```
+
+## MCP remote command (preferred after install)
+
+```text
+POSTGRESSOPS_HOME=/opt/postgressops POSTGRESSOPS_REPO=https://github.com/Makmillerme/postgressops.git \
+  bash /opt/postgressops/scripts/mcp-ssh-entrypoint.sh
+```
+
+## After path change
+
+Update both:
+- `POSTGRESSOPS_HOME` in `~/.cursor/mcp.json` remote SSH command
+- `STACK_DIR` / `SCRIPTS_DIR` in `tools/mcp-postgres-ops/.env` (auto-set by `server-update.sh`)

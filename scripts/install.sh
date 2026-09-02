@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL=""
-TARGET_DIR="/root/apps/postgres-stack"
+TARGET_DIR="${POSTGRESSOPS_HOME:-/opt/postgressops}"
 LOCAL_MODE="false"
 
 while [[ $# -gt 0 ]]; do

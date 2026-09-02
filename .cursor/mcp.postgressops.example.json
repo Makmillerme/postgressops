@@ -1,0 +1,35 @@
+{
+  "_postgressops": {
+    "description": "Metadata for Cursor AI — bootstrap PostgressOps on SSH server from GitHub",
+    "repo": "https://github.com/Makmillerme/postgressops.git",
+    "defaultInstallPath": "/opt/postgressops",
+    "docs": "https://github.com/Makmillerme/postgressops#mcp-setup-cursor-ssh-mode",
+    "bootstrapScript": "scripts/server-update.sh",
+    "mcpEntrypoint": "scripts/mcp-ssh-entrypoint.sh",
+    "rawEntrypointUrl": "https://raw.githubusercontent.com/Makmillerme/postgressops/main/scripts/mcp-ssh-entrypoint.sh",
+    "aiBootstrapSteps": [
+      "1. SSH to the server from postgres-ops MCP args (user@host).",
+      "2. If POSTGRESSOPS_HOME is missing: git clone repo to installPath.",
+      "3. Copy docker/.env.example to docker/.env and fill POSTGRES_USER, POSTGRES_PASSWORD, SERVER_PUBLIC_IP.",
+      "4. Run: cd $POSTGRESSOPS_HOME && bash scripts/server-update.sh",
+      "5. Reload MCP: Ctrl+Shift+P -> MCP: Reload Servers."
+    ]
+  },
+  "mcpServers": {
+    "postgres-ops": {
+      "command": "ssh",
+      "args": [
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "BatchMode=yes",
+        "-T",
+        "root@YOUR_SERVER_IP",
+        "POSTGRESSOPS_HOME=/opt/postgressops POSTGRESSOPS_REPO=https://github.com/Makmillerme/postgressops.git bash -lc 'curl -fsSL https://raw.githubusercontent.com/Makmillerme/postgressops/main/scripts/mcp-ssh-entrypoint.sh | bash -s'"
+      ],
+      "postgressops": {
+        "repo": "https://github.com/Makmillerme/postgressops.git",
+        "installPath": "/opt/postgressops",
+        "docs": "https://github.com/Makmillerme/postgressops#mcp-setup-cursor-ssh-mode"
+      }
+    }
+  }
+}

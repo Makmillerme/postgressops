@@ -31,6 +31,8 @@ if (existsSync(envPath)) {
   }
 }
 
+const POSTGRESSOPS_HOME = process.env.POSTGRESSOPS_HOME || "/opt/postgressops";
+
 // On this stack, host-level SQL access goes through PgBouncer (port 6432).
 // Direct Postgres port 5432 is NOT published on the host by default.
 const CONFIG = {
@@ -41,8 +43,8 @@ const CONFIG = {
   pgDb:           process.env.PG_MAINTENANCE_DB || "postgres",
   pgbouncerHost:  process.env.PGBOUNCER_HOST   || "127.0.0.1",
   pgbouncerPort:  parseInt(process.env.PGBOUNCER_PORT || "6432", 10),
-  stackDir:       process.env.STACK_DIR        || "/opt/postgres-stack/docker",
-  scriptsDir:     process.env.SCRIPTS_DIR      || "",
+  stackDir:       process.env.STACK_DIR        || path.join(POSTGRESSOPS_HOME, "docker"),
+  scriptsDir:     process.env.SCRIPTS_DIR      || path.join(POSTGRESSOPS_HOME, "scripts"),
   logFile:        process.env.MCP_LOG_FILE     || "/tmp/mcp-postgres-ops.log",
 };
 if (!CONFIG.scriptsDir) {

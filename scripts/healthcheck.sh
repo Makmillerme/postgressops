@@ -42,7 +42,8 @@ check "pgbouncer TCP port"             "docker exec pgbouncer bash -lc 'exec 3<>
 
 echo ""
 echo "Backups:"
-LAST_BACKUP=$(docker exec pg_backup find /backups/full -type f -name '*.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | awk 'END{print $2}')
+# Alpine find lacks GNU -printf; use ls -t instead.
+LAST_BACKUP=$(docker exec pg_backup sh -c 'ls -t /backups/full/full_*.sql.gz 2>/dev/null | head -1' || true)
 if [[ -n "${LAST_BACKUP:-}" ]]; then
   printf "  %-38s [${OK}] %s\n" "Last backup found" "$LAST_BACKUP"
 else
@@ -58,3 +59,4 @@ echo ""
 echo "PgBouncer mappings:"
 rg "^[a-zA-Z].*= host=postgres" "$PGB_INI" | awk '{print "  " $0}' || true
 echo ""
+

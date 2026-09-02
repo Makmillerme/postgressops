@@ -179,6 +179,8 @@ done
 [[ "$RETRIES" -gt 0 ]] || die "PgBouncer did not become healthy within 60s."
 ok "PgBouncer healthy."
 
+bash "$SCRIPT_DIR/fix-wal-archive.sh" || log "WARNING: wal_archive fix failed (non-fatal)."
+
 # ============================================================
 # Step 6: Ensure MCP .env exists and is correct
 # ============================================================

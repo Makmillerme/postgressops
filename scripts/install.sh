@@ -83,6 +83,7 @@ sed -i \
   "$PGB_INI"
 
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+bash "$SCRIPTS_DIR/fix-wal-archive.sh" || true
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
 echo ""

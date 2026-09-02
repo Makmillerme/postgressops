@@ -61,6 +61,7 @@ done
 
 docker exec postgres pg_isready -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" >/dev/null
 docker exec pgbouncer bash -lc "exec 3<>/dev/tcp/127.0.0.1/${PGBOUNCER_LISTEN_PORT:-6432}" >/dev/null
+bash "$SCRIPT_DIR/fix-wal-archive.sh" || true
 
 echo ""
 echo "Reinstall completed. Data volumes were NOT removed."
